@@ -54,7 +54,11 @@ class DecisionWheel {
     const rect = parent ? parent.getBoundingClientRect() : this.canvas.getBoundingClientRect();
     const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
 
-    const displaySize = Math.max(260, Math.min(rect.width || 320, rect.height || 540));
+    let displaySize = rect.width || this.canvas.clientWidth || 360;
+    if (rect.height && rect.height > 50 && rect.height < displaySize) {
+      displaySize = rect.height;
+    }
+    displaySize = Math.max(260, Math.min(displaySize, 560));
 
     this.canvas.width = Math.round(displaySize * dpr);
     this.canvas.height = Math.round(displaySize * dpr);
@@ -74,12 +78,12 @@ class DecisionWheel {
   }
 
   setMembers(members) {
-    this.members = members.filter(m => m.active);
+    this.members = (members || []).filter(m => m && m.active);
     this.draw();
   }
 
   getTotalWeight() {
-    return this.members.reduce((acc, m) => acc + Number(m.weight || 1), 0);
+    return this.members.reduce((acc, m) => acc + (Number(m.weight) || 1), 0);
   }
 
   /**
@@ -90,7 +94,7 @@ class DecisionWheel {
 
     this.ctx.clearRect(0, 0, this.width, this.height);
 
-    if (this.members.length === 0) {
+    if (!this.members || this.members.length === 0) {
       this.drawEmptyState();
       return;
     }
@@ -120,7 +124,8 @@ class DecisionWheel {
     // Draw Weighted Slices
     for (let i = 0; i < this.members.length; i++) {
       const member = this.members[i];
-      const sliceAngle = (member.weight / totalWeight) * (Math.PI * 2);
+      const weightNum = Number(member.weight) || 1;
+      const sliceAngle = (weightNum / totalWeight) * (Math.PI * 2);
       
       const startAngle = accumulatedAngle + this.currentAngle;
       const endAngle = startAngle + sliceAngle;
@@ -136,23 +141,28 @@ class DecisionWheel {
       this.ctx.closePath();
 
       // Gradient Fill for slice depth
-      const grad = this.ctx.createRadialGradient(
-        this.centerX, this.centerY, 20,
-        this.centerX, this.centerY, this.radius
-      );
-      grad.addColorStop(0, this.lightenColor(fillColor, 15));
-      grad.addColorStop(1, fillColor);
+      try {
+        const grad = this.ctx.createRadialGradient(
+          this.centerX, this.centerY, 20,
+          this.centerX, this.centerY, this.radius
+        );
+        grad.addColorStop(0, this.lightenColor(fillColor, 18));
+        grad.addColorStop(1, fillColor);
+        this.ctx.fillStyle = grad;
+      } catch (e) {
+        this.ctx.fillStyle = fillColor;
+      }
 
-      this.ctx.fillStyle = grad;
       this.ctx.fill();
 
       // Slice Divider Line
-      this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+      this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
       this.ctx.lineWidth = 2;
       this.ctx.stroke();
 
       // Slice Label Text & Icon
-      this.drawSliceLabel(member, startAngle, sliceAngle, colorScheme.text);
+      const contrastTextColor = this.getContrastColor(fillColor);
+      this.drawSliceLabel(member, startAngle, sliceAngle, contrastTextColor);
 
       this.ctx.restore();
 
@@ -392,12 +402,35 @@ class DecisionWheel {
     }
   }
 
+  getContrastColor(hexColor) {
+    if (!hexColor || typeof hexColor !== 'string') return '#ffffff';
+    let hex = hexColor.replace('#', '');
+    if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+    const r = parseInt(hex.substring(0, 2), 16) || 0;
+    const g = parseInt(hex.substring(2, 4), 16) || 0;
+    const b = parseInt(hex.substring(4, 6), 16) || 0;
+    const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+    return (yiq >= 145) ? '#000000' : '#ffffff';
+  }
+
   lightenColor(hex, percent) {
-    let num = parseInt(hex.replace('#', ''), 16),
-      amt = Math.round(2.55 * percent),
-      R = (num >> 16) + amt,
-      G = (num >> 8 & 0x00FF) + amt,
-      B = (num & 0x0000FF) + amt;
-    return '#' + (0x1000000 + (R < 255 ? R < 1 ? 0 : R : 255) * 0x10000 + (G < 255 ? G < 1 ? 0 : G : 255) * 0x100 + (B < 255 ? B < 1 ? 0 : B : 255)).toString(16).slice(1);
+    if (!hex || typeof hex !== 'string' || !hex.startsWith('#')) {
+      return '#f59e0b';
+    }
+    try {
+      let cleanHex = hex.replace('#', '');
+      if (cleanHex.length === 3) {
+        cleanHex = cleanHex.split('').map(c => c + c).join('');
+      }
+      const num = parseInt(cleanHex, 16);
+      if (isNaN(num)) return '#f59e0b';
+      const amt = Math.round(2.55 * percent);
+      const R = Math.min(255, Math.max(0, (num >> 16) + amt));
+      const G = Math.min(255, Math.max(0, ((num >> 8) & 0x00FF) + amt));
+      const B = Math.min(255, Math.max(0, (num & 0x0000FF) + amt));
+      return '#' + ((1 << 24) + (R << 16) + (G << 8) + B).toString(16).slice(1);
+    } catch (e) {
+      return hex;
+    }
   }
 }

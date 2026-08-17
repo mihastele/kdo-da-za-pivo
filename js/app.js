@@ -2,27 +2,27 @@
  * Main Application Logic for "Kdo da za pivo?" Decision Wheel
  */
 
+// Color Swatch Palette
+const memberColors = [
+  '#f59e0b', '#3b82f6', '#10b981', '#ec4899',
+  '#8b5cf6', '#ef4444', '#06b6d4', '#f97316'
+];
+
+// Random Slovenian Beer Toasts for Winner Modal
+const slovenianToasts = [
+  "Na zdravje! 🍺",
+  "Čin-čin! Za dobre prijatelje!",
+  "Hvala za krog! 🍻",
+  "Pivo bo še posebej sladko!",
+  "Danes ne bomo žejni!",
+  "Usoda je spregovorila!",
+  "Pivo je rešeno!"
+];
+
 document.addEventListener('DOMContentLoaded', () => {
   // State Initialization
   let members = loadMembers();
   let history = loadHistory();
-
-  // Color Swatch Palette
-  const memberColors = [
-    '#f59e0b', '#3b82f6', '#10b981', '#ec4899',
-    '#8b5cf6', '#ef4444', '#06b6d4', '#f97316'
-  ];
-
-  // Random Slovenian Beer Toasts for Winner Modal
-  const slovenianToasts = [
-    "Na zdravje! 🍺",
-    "Čin-čin! Za dobre prijatelje!",
-    "Hvala za krog! 🍻",
-    "Pivo bo še posebej sladko!",
-    "Danes ne bomo žejni!",
-    "Usoda je spregovorila!",
-    "Pivo je rešeno!"
-  ];
 
   // Initialize Wheel
   const wheel = new DecisionWheel('wheelCanvas', {
@@ -63,17 +63,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- Event Listeners ---
 
-  // Add Member
-  addMemberForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const name = memberNameInput.value.trim();
+  // Add Member Handler
+  function handleAddMember(e) {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    const name = (memberNameInput.value || '').trim();
     const weight = parseInt(memberWeightInput.value, 10) || 1;
 
-    if (!name) return;
+    if (!name) {
+      memberNameInput.focus();
+      return;
+    }
 
     const newMember = {
-      id: Date.now().toString(),
-      name,
+      id: Date.now().toString() + '-' + Math.random().toString(36).slice(2, 6),
+      name: name,
       weight: Math.max(1, Math.min(weight, 50)),
       active: true,
       color: memberColors[members.length % memberColors.length]
@@ -87,7 +93,19 @@ document.addEventListener('DOMContentLoaded', () => {
     memberNameInput.value = '';
     memberWeightInput.value = '1';
     memberNameInput.focus();
-  });
+  }
+
+  addMemberForm.addEventListener('submit', handleAddMember);
+
+  const addMemberBtn = document.getElementById('addMemberBtn');
+  if (addMemberBtn) {
+    addMemberBtn.addEventListener('click', (e) => {
+      // If form doesn't automatically submit, trigger handleAddMember
+      if (memberNameInput.value.trim()) {
+        handleAddMember(e);
+      }
+    });
+  }
 
   // Preset Buttons
   document.querySelectorAll('.btn-chip[data-preset]').forEach(btn => {
